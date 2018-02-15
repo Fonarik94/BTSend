@@ -2,6 +2,7 @@ package com.fonarik94;
 
 import javax.bluetooth.*;
 import javax.bluetooth.UUID;
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
@@ -87,13 +88,14 @@ public class BluetoothService {
     }
 
     public List<String> getAvailableServices(BluetoothDevice btDevice) {
-        UUID[] searchUuidSet = new UUID[]{OBEX_FILE_TRANSFER, HEADSET, AVRCP, OBEX_FILE_PUSH, OBEX_BASIC_IMAGE_PROFILE, OBEX_PRINTING,OBEX_SYNC_PROFILE, OBEX_PHONE_BOOK_ACCES};
-        int[] attrIDs = new int[]{0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006, 0x0007, 0x0008, 0x0009, 0x000A, 0x000C, 0x000E, 0x000F, 0x0010, 0x0011, 0x0012, 0x0014, 0x0016, 0x0017, 0x0019, 0x001b, 0x001E,0x001F,0x0100, };
-
+//        UUID[] searchUuidSet = new UUID[]{OBEX_FILE_TRANSFER, HEADSET, AVRCP, OBEX_FILE_PUSH, OBEX_BASIC_IMAGE_PROFILE, OBEX_PRINTING,OBEX_SYNC_PROFILE, OBEX_PHONE_BOOK_ACCES};
+//        int[] attrIDs = new int[]{0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006, 0x0007, 0x0008, 0x0009, 0x000A, 0x000C, 0x000E, 0x000F, 0x0010, 0x0011, 0x0012, 0x0014, 0x0016, 0x0017, 0x0019, 0x001b, 0x001E,0x001F,0x0100, };
+        UUID[] searchUuidSet = new UUID[]{OBEX_FILE_PUSH};
+        int[] attrIDs = new int[]{0x0100};
         synchronized (serviceSearchCompletedEvent) {
             try {
                 System.out.println("search services on " + btDevice.getBluetoothAddress() + " " + btDevice.getName());
-                LocalDevice.getLocalDevice().getDiscoveryAgent().searchServices(attrIDs, searchUuidSet, btDevice.getRemoteDevice(), listener);
+                LocalDevice.getLocalDevice().getDiscoveryAgent().searchServices(null, searchUuidSet, btDevice.getRemoteDevice(), listener);
                 serviceSearchCompletedEvent.wait();
             } catch (BluetoothStateException btStateEx) {
                 btStateEx.printStackTrace();
@@ -102,6 +104,10 @@ public class BluetoothService {
             }
         }
         return serviceFound;
+    }
+
+    public boolean sendImage(File img){
+        return false;
     }
 }
 
