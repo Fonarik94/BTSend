@@ -2,8 +2,13 @@ package com.fonarik94;
 
 import javax.bluetooth.*;
 import javax.bluetooth.UUID;
-import java.io.File;
-import java.io.IOException;
+import javax.microedition.io.Connection;
+import javax.microedition.io.Connector;
+import javax.obex.ClientSession;
+import javax.obex.HeaderSet;
+import javax.obex.Operation;
+import javax.obex.ResponseCodes;
+import java.io.*;
 import java.util.*;
 
 
@@ -43,16 +48,15 @@ public class BluetoothService {
         }
 
         public void serviceSearchCompleted(int transID, int respCode) {
-            System.out.println("service search completed! \n Response code " + respCode);
+            System.out.println("service search completed!  Response code " + respCode);
             synchronized (serviceSearchCompletedEvent) {
                 serviceSearchCompletedEvent.notifyAll();
             }
         }
 
         public void servicesDiscovered(int transID, ServiceRecord[] servRecord) {
-            System.out.println("Serv Record Length: "+ servRecord.length);
             for (int i = 0; i < servRecord.length; i++) {
-                String url = servRecord[i].getConnectionURL(ServiceRecord.AUTHENTICATE_ENCRYPT, false);
+                String url = servRecord[i].getConnectionURL(ServiceRecord.NOAUTHENTICATE_NOENCRYPT, false);
                 if (url == null) {
                     continue;
                 }
@@ -60,8 +64,6 @@ public class BluetoothService {
                 DataElement serviceName = servRecord[i].getAttributeValue(0x0100);
                 if (serviceName != null) {
                     System.out.println("service " + serviceName.getValue() + " found " + url);
-                } else {
-                    System.out.println("service found " + url);
                 }
             }
         }
@@ -106,8 +108,38 @@ public class BluetoothService {
         return serviceFound;
     }
 
-    public boolean sendImage(File img){
-        return false;
+    public boolean sendImage(BluetoothDevice bluetoothDevice, String connectionURL, File img) throws IOException {
+        Connection connection = Connector.open(connectionURL);
+        ClientSession clientSession = (ClientSession) connection;
+        HeaderSet hsConnectionReply = clientSession.connect(null);
+        if (hsConnectionReply.getResponseCode() != ResponseCodes.OBEX_HTTP_OK) {
+            System.out.println("Failed to connect");
+            return false;
+        }
+
+
+        InputStream fis = new FileInputStream(img);
+        byte[] data = new byte[fis.available()];
+
+        HeaderSet hsOperation = clientSession.createHeaderSet();
+        hsOperation.setHeader(HeaderSet.COUNT, 1L);
+        hsOperation.setHeader(HeaderSet.LENGTH, new Long(fis.available()));
+        hsOperation.setHeader(HeaderSet.NAME, img.getName());
+        hsOperation.setHeader(HeaderSet.TYPE, "image");
+
+        fis.read(data, 0, fis.available());
+        Operation putOperation = clientSession.put(hsOperation);
+        OutputStream outputStream = putOperation.openOutputStream();
+        byte data1[] = "helloWorld".getBytes("iso-8859-1");
+
+        outputStream.write(data);
+        outputStream.flush();
+        outputStream.close();
+
+        putOperation.close();
+        clientSession.disconnect(null);
+        clientSession.close();
+        return true;
     }
 }
 
