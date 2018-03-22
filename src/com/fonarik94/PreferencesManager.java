@@ -1,6 +1,7 @@
 package com.fonarik94;
 
 
+import java.io.*;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 
@@ -45,7 +46,7 @@ public class PreferencesManager {
         }
     }
 
-    public PreferencesManager() {
+    PreferencesManager() {
         prefs = Preferences.userNodeForPackage(PreferencesManager.class);
 
     }

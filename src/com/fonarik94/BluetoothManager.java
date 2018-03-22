@@ -17,8 +17,13 @@ public class BluetoothManager {
     private String ObexServiceUrl;
     private final Object inquiryCompletedEvent = new Object();
     private final Object serviceSearchCompletedEvent = new Object();
+    private ClientSession clientSession;
+    private HeaderSet hsConnectionReply;
+
 
     private DiscoveryListener listener = new DiscoveryListener() {
+        private int responseCode;
+        private String responseMessage;
 
         public void deviceDiscovered(RemoteDevice btRemoteDevice, DeviceClass cod) {
             BluetoothDevice discoveredDevice = new BluetoothDevice();
@@ -40,6 +45,7 @@ public class BluetoothManager {
         }
 
         public void serviceSearchCompleted(int transID, int respCode) {
+            responseCode = respCode;
             String responseMsg = "Error";
             switch (respCode) {
                 case 1:
@@ -58,6 +64,7 @@ public class BluetoothManager {
                     responseMsg = "Device not reachable";
                     break;
             }
+            responseMessage = responseMsg;
             System.out.println(responseMsg);
             synchronized (serviceSearchCompletedEvent) {
                 serviceSearchCompletedEvent.notifyAll();
@@ -77,9 +84,17 @@ public class BluetoothManager {
                 }
             }
         }
+
+        public int getResponseCode() {
+            return responseCode;
+        }
+
+        public String getResponseMessage() {
+            return responseMessage;
+        }
     };
 
-    public List<BluetoothDevice> getAvailableDevices() {
+    public List<BluetoothDevice> getAvailableDevices() throws BluetoothStateException {
         deviceList.clear();
         synchronized (inquiryCompletedEvent) {
             try {
@@ -89,8 +104,8 @@ public class BluetoothManager {
                     inquiryCompletedEvent.wait();
                     System.out.println(deviceList.size() + " device(s) found");
                 }
-            } catch (BluetoothStateException | InterruptedException btStateEx) {
-                btStateEx.printStackTrace();
+            } catch (InterruptedException e) {
+                System.out.println(e.getMessage());
             }
         }
         return deviceList;
@@ -111,18 +126,29 @@ public class BluetoothManager {
         return ObexServiceUrl;
     }
 
+    public boolean available(String connectionURL) {
+        try {
+            clientSession = (ClientSession) Connector.open(connectionURL);
+            clientSession.connect(null);
+            clientSession.disconnect(null);
+            clientSession.close();
+            return true;
+        } catch (IOException e) {
+            System.out.println("May be remote device not available. Check bluetooth. " + e.getMessage());
+        }
+
+        return false;
+    }
+
     public boolean sendImage(String connectionURL, File img) {
         int fileLength = 0;
-
         try (InputStream fis = new FileInputStream(img)) {
-            ClientSession clientSession = (ClientSession) Connector.open(connectionURL);
-            HeaderSet hsConnectionReply = clientSession.connect(null);
-
+            clientSession = (ClientSession) Connector.open(connectionURL);
+            hsConnectionReply = clientSession.connect(null);
             if (hsConnectionReply.getResponseCode() != ResponseCodes.OBEX_HTTP_OK) {
                 System.out.println("Failed to connect");
                 return false;
             }
-
             fileLength = fis.available();
             byte[] data = new byte[fileLength];
             fis.read(data, 0, fileLength);
@@ -137,9 +163,7 @@ public class BluetoothManager {
             OutputStream outputStream = putOperation.openOutputStream();
 
             outputStream.write(data);
-            outputStream.flush();
             outputStream.close();
-
             putOperation.close();
             clientSession.disconnect(null);
             clientSession.close();
@@ -149,7 +173,6 @@ public class BluetoothManager {
         } catch (IOException ioe) {
             System.out.println(ioe.getMessage());
         }
-
         return true;
     }
 }
