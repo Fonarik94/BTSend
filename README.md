@@ -11,3 +11,6 @@ Downloaded image store in TEMP folder, defined as a environment variable.
 <b>Note</b><br>
 This version work's only on Windows OS and only with default windows bluetooth stack.
 It specified in library witch implemets work with bluetooth.
+
+<b>Demo</b><br>
+https://www.youtube.com/watch?v=iticVexMnYk
