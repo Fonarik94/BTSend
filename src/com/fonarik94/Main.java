@@ -36,30 +36,9 @@ public class Main {
         if (cmd.hasOption("r") & serviceUrl != null) {
             run();
         } else {
-            System.out.println("PhotoViewer 1.0");
-            System.out.println("Select action: ");
-            System.out.println("1. Run");
-            System.out.println("2. Change update period (now it " + updatePeriod + " sec)");
-            System.out.println("3. Reset parameters");
-            System.out.println("4. Exit");
-            System.out.println("Input:");
-            switch (input()) {
-                case 1:
-                    run();
-                    break;
-                case 2:
-                    System.out.println("Input update period in seconds: ");
-                    setUpdatePeriod(input());
-                    break;
-                case 3:
-                    userPrefs.resetAll();
-                    break;
-                case 4:
-                    scheduler.shutdown();
-                    System.exit(0);
-                    break;
-            }
+            menu();
         }
+
     }
 
     private static void run() {
@@ -125,11 +104,40 @@ public class Main {
     }
 
     private static void setUpdatePeriod(int period) {
-
+        updatePeriod = period;
         userPrefs.setUpdatePeriod(period);
-        System.out.printf("Update period was set to %d seconds", period);
+        System.out.printf("Update period was set to %d seconds \n", period);
     }
 
-
+    private static void menu() {
+        boolean end = false;
+        System.out.println("PhotoViewer 1.0");
+        while(!end) {
+            System.out.println("Select action: ");
+            System.out.println("1. Run");
+            System.out.println("2. Change update period (now it " + updatePeriod + " sec)");
+            System.out.println("3. Reset parameters");
+            System.out.println("4. Exit");
+            System.out.println("Input:");
+            switch (input()) {
+                case 1:
+                    run();
+                    end = true;
+                    break;
+                case 2:
+                    System.out.println("Input update period in seconds: ");
+                    setUpdatePeriod(input());
+                    break;
+                case 3:
+                    userPrefs.resetAll();
+                    System.out.println("Parameters set to default values");
+                    break;
+                case 4:
+                    scheduler.shutdown();
+                    System.exit(0);
+                    break;
+            }
+        }
+    }
 }
 
