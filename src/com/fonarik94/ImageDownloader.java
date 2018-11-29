@@ -1,31 +1,28 @@
 package com.fonarik94;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.xml.ws.http.HTTPException;
 import java.io.*;
+import java.net.HttpURLConnection;
 import java.net.URL;
 
-public class ImageDownloader {
-    public File downloadImage(String workFile) throws IOException {
-
+class ImageDownloader {
+    public static byte[] download() throws IOException {
         URL url = new URL("https://source.unsplash.com/random/?nature");
         HttpsURLConnection httpsConnection = (HttpsURLConnection) url.openConnection();
-        File image = new File(workFile);
-        if (!image.exists()) {
-            image.createNewFile();
-        }
         try (InputStream inputStream = new BufferedInputStream(httpsConnection.getInputStream());
-             OutputStream outputStream = new BufferedOutputStream(new FileOutputStream(image))) {
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             if (httpsConnection.getResponseCode() == 200) {
                 byte[] buffer = new byte[1024 * 8]; //Buffer size 8KB
-                int length = 0;
-                while ((length = inputStream.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, length);
+                int data;
+                while ((data = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, data);
                 }
                 System.out.println("New image downloaded");
+                return outputStream.toByteArray();
             } else {
-                System.out.println("Image downloading error. HTTP response code: " + httpsConnection.getResponseCode());
+                throw new IOException("Download error. HTTP response code = " + httpsConnection.getResponseCode());
             }
         }
-        return image;
     }
 }

@@ -3,23 +3,23 @@ package com.fonarik94;
 import org.apache.commons.cli.*;
 
 import javax.bluetooth.BluetoothStateException;
-import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
+    public static final int DEFAULT_UPDATE_PERIOD = 30;
     private static PreferencesManager userPrefs = new PreferencesManager();
     private static String serviceUrl = userPrefs.getServicePath();
-    private static String workDir = userPrefs.getWorkDirPath();
     private static int updatePeriod = userPrefs.getUpdatePeriod();
     private static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    private static ImageDownloader downloader = new ImageDownloader();
-
     private static BluetoothManager bluetoothManager = new BluetoothManager();
-    private static Map<Integer, BluetoothDevice> deviceMap = new HashMap<Integer, BluetoothDevice>();
+    private static Map<Integer, BluetoothDevice> deviceMap = new HashMap<>();
+    private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
         Options options = new Options();
@@ -33,56 +33,43 @@ public class Main {
         } catch (ParseException e) {
             System.out.println(e.getMessage());
         }
-        if (cmd.hasOption("r") & serviceUrl != null) {
+        if ((cmd != null) & cmd.hasOption("r") & (serviceUrl != null)) {
             run();
         } else {
             menu();
         }
-
     }
 
     private static void run() {
         scheduler.scheduleAtFixedRate(task, 3, updatePeriod, TimeUnit.SECONDS);
     }
 
-    private static Runnable task = new Runnable() {
-        @Override
-        public void run() {
-            try {
-                deviceChooser();
-                bluetoothManager = new BluetoothManager();
-                if (bluetoothManager.available(serviceUrl)) {
-                    File imageFile = downloader.downloadImage(workDir);
-                    bluetoothManager.sendImage(serviceUrl, imageFile);
-                }
-            } catch (IOException e) {
-                System.out.println(e.getMessage());
+    private static Runnable task = () -> {
+        try {
+            deviceSelector();
+            if (bluetoothManager.available(serviceUrl)) {
+                byte[] rawFile = ImageDownloader.download();
+                bluetoothManager.sendImage(serviceUrl, rawFile);
             }
-
+        } catch (IOException e) {
+            System.out.println("Download error. Check network");
         }
     };
 
-    private static int input() {
-        Scanner scanner = new Scanner(System.in);
-        return scanner.nextInt();
-
-    }
-
-    private static void deviceChooser() throws BluetoothStateException {
-        bluetoothManager = new BluetoothManager();
-
+    private static void deviceSelector() throws BluetoothStateException {
         if (serviceUrl == null) {
             int i = 1;
             for (BluetoothDevice btd : bluetoothManager.getAvailableDevices()) {
                 deviceMap.put(i, btd);
                 i++;
             }
+
             while (!deviceMap.isEmpty()) {
                 for (Integer key : deviceMap.keySet()) {
                     System.out.println(key + ". " + deviceMap.get(key).getName());
                 }
                 System.out.print("Select device: ");
-                int selectedDeviceIndex = input();
+                int selectedDeviceIndex = scanner.nextInt();
                 if (selectedDeviceIndex > i || selectedDeviceIndex < 0) {
                     System.out.println("Wrong input!");
                     continue;
@@ -119,17 +106,19 @@ public class Main {
             System.out.println("3. Reset parameters");
             System.out.println("4. Exit");
             System.out.println("Input:");
-            switch (input()) {
+            switch (scanner.nextInt()) {
                 case 1:
                     run();
                     end = true;
                     break;
                 case 2:
                     System.out.println("Input update period in seconds: ");
-                    setUpdatePeriod(input());
+                    setUpdatePeriod(scanner.nextInt());
                     break;
                 case 3:
                     userPrefs.resetAll();
+                    setUpdatePeriod(DEFAULT_UPDATE_PERIOD);
+                    serviceUrl = null;
                     System.out.println("Parameters set to default values");
                     break;
                 case 4:

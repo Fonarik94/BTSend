@@ -10,19 +10,14 @@ import javax.obex.ResponseCodes;
 import java.io.*;
 import java.util.*;
 
-
 public class BluetoothManager {
-    private final UUID OBEX_FILE_PUSH = new UUID(0x1105);
-    private List<BluetoothDevice> deviceList = new ArrayList<BluetoothDevice>();
-    private String ObexServiceUrl;
+    private static final UUID OBEX_FILE_PUSH = new UUID(0x1105);
+    private List<BluetoothDevice> deviceList = new ArrayList<>();
+    private String obexServiceUrl;
     private final Object inquiryCompletedEvent = new Object();
     private final Object serviceSearchCompletedEvent = new Object();
-    private ClientSession clientSession;
-    private HeaderSet hsConnectionReply;
-
 
     private DiscoveryListener listener = new DiscoveryListener() {
-        private int responseCode;
         private String responseMessage;
 
         public void deviceDiscovered(RemoteDevice btRemoteDevice, DeviceClass cod) {
@@ -45,52 +40,43 @@ public class BluetoothManager {
         }
 
         public void serviceSearchCompleted(int transID, int respCode) {
-            responseCode = respCode;
-            String responseMsg = "Error";
             switch (respCode) {
-                case 1:
-                    responseMsg = "Service search completed";
+                case DiscoveryListener.SERVICE_SEARCH_COMPLETED:
+                    this.responseMessage = "Service search completed";
                     break;
-                case 2:
-                    responseMsg = "Service search terminated";
+                case DiscoveryListener.SERVICE_SEARCH_TERMINATED:
+                    this.responseMessage = "Service search terminated";
                     break;
-                case 3:
-                    responseMsg = "Service search error";
+                case DiscoveryListener.SERVICE_SEARCH_ERROR:
+                    this.responseMessage = "Service search error";
                     break;
-                case 4:
-                    responseMsg = "Service search no records";
+                case DiscoveryListener.SERVICE_SEARCH_NO_RECORDS:
+                    this.responseMessage = "Service search no records";
                     break;
-                case 6:
-                    responseMsg = "Device not reachable";
+                case DiscoveryListener.SERVICE_SEARCH_DEVICE_NOT_REACHABLE:
+                    this.responseMessage = "Device not reachable";
                     break;
+                default:
+                    this.responseMessage = "Error";
             }
-            responseMessage = responseMsg;
-            System.out.println(responseMsg);
+            System.out.println(this.responseMessage);
             synchronized (serviceSearchCompletedEvent) {
                 serviceSearchCompletedEvent.notifyAll();
             }
         }
 
-        public void servicesDiscovered(int transID, ServiceRecord[] servRecord) {
-            for (ServiceRecord aServRecord : servRecord) {
-                String url = aServRecord.getConnectionURL(ServiceRecord.NOAUTHENTICATE_NOENCRYPT, false);
+        public void servicesDiscovered(int transID, ServiceRecord[] serviceRecords) {
+            for (ServiceRecord record : serviceRecords) {
+                String url = record.getConnectionURL(ServiceRecord.NOAUTHENTICATE_NOENCRYPT, false);
                 if (url == null) {
                     continue;
                 }
-                ObexServiceUrl = url;
-                DataElement serviceName = aServRecord.getAttributeValue(0x0100);
+                obexServiceUrl = url;
+                DataElement serviceName = record.getAttributeValue(0x0100);
                 if (serviceName != null) {
                     System.out.println("service " + serviceName.getValue() + " found " + url);
                 }
             }
-        }
-
-        public int getResponseCode() {
-            return responseCode;
-        }
-
-        public String getResponseMessage() {
-            return responseMessage;
         }
     };
 
@@ -98,7 +84,9 @@ public class BluetoothManager {
         deviceList.clear();
         synchronized (inquiryCompletedEvent) {
             try {
-                boolean started = LocalDevice.getLocalDevice().getDiscoveryAgent().startInquiry(DiscoveryAgent.GIAC, listener);
+                boolean started = LocalDevice.getLocalDevice()
+                        .getDiscoveryAgent()
+                        .startInquiry(DiscoveryAgent.GIAC, listener);
                 if (started) {
                     System.out.println("wait for device inquiry to complete...");
                     inquiryCompletedEvent.wait();
@@ -112,23 +100,25 @@ public class BluetoothManager {
     }
 
     public String getAvailableServices(BluetoothDevice btDevice) {
-
         UUID[] searchUuidSet = new UUID[]{OBEX_FILE_PUSH};
         synchronized (serviceSearchCompletedEvent) {
             try {
                 System.out.println("search services on " + btDevice.getBluetoothAddress() + " " + btDevice.getName());
-                LocalDevice.getLocalDevice().getDiscoveryAgent().searchServices(null, searchUuidSet, btDevice.getRemoteDevice(), listener);
+                LocalDevice
+                        .getLocalDevice()
+                        .getDiscoveryAgent()
+                        .searchServices(null, searchUuidSet, btDevice.getRemoteDevice(), listener);
                 serviceSearchCompletedEvent.wait();
             } catch (BluetoothStateException | InterruptedException btStateEx) {
                 btStateEx.printStackTrace();
             }
         }
-        return ObexServiceUrl;
+        return obexServiceUrl;
     }
 
     public boolean available(String connectionURL) {
         try {
-            clientSession = (ClientSession) Connector.open(connectionURL);
+            ClientSession clientSession = (ClientSession) Connector.open(connectionURL);
             clientSession.connect(null);
             clientSession.disconnect(null);
             clientSession.close();
@@ -136,41 +126,36 @@ public class BluetoothManager {
         } catch (IOException e) {
             System.out.println("May be remote device not available. Check bluetooth. " + e.getMessage());
         }
-
         return false;
     }
 
-    public boolean sendImage(String connectionURL, File img) {
-        int fileLength = 0;
-        try (InputStream fis = new FileInputStream(img)) {
-            clientSession = (ClientSession) Connector.open(connectionURL);
-            hsConnectionReply = clientSession.connect(null);
+    public boolean sendImage(String connectionURL, byte[] rawFile) {
+        try (InputStream bis = new ByteArrayInputStream(rawFile)) {
+            ClientSession clientSession = (ClientSession) Connector.open(connectionURL);
+            HeaderSet hsConnectionReply = clientSession.connect(null);
             if (hsConnectionReply.getResponseCode() != ResponseCodes.OBEX_HTTP_OK) {
                 System.out.println("Failed to connect");
                 return false;
             }
-            fileLength = fis.available();
+            int fileLength = bis.available();
             byte[] data = new byte[fileLength];
-            fis.read(data, 0, fileLength);
+            bis.read(data, 0, fileLength);
 
             HeaderSet hsOperation = clientSession.createHeaderSet();
             hsOperation.setHeader(HeaderSet.COUNT, 1L);
             hsOperation.setHeader(HeaderSet.LENGTH, (long) fileLength);
-            hsOperation.setHeader(HeaderSet.NAME, img.getName());
+            hsOperation.setHeader(HeaderSet.NAME, "image.jpg");
             hsOperation.setHeader(HeaderSet.TYPE, "image");
 
             Operation putOperation = clientSession.put(hsOperation);
-            OutputStream outputStream = putOperation.openOutputStream();
-
-            outputStream.write(data);
-            outputStream.close();
+            try(OutputStream outputStream = putOperation.openOutputStream()) {
+                outputStream.write(data);
+            }
             putOperation.close();
             clientSession.disconnect(null);
             clientSession.close();
 
-        } catch (FileNotFoundException fne) {
-            System.out.println("File not found. \n" + fne.getMessage());
-        } catch (IOException ioe) {
+        }  catch (IOException ioe) {
             System.out.println(ioe.getMessage());
         }
         return true;
