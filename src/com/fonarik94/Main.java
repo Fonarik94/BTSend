@@ -20,6 +20,7 @@ public class Main {
     private static BluetoothManager bluetoothManager = new BluetoothManager();
     private static Map<Integer, BluetoothDevice> deviceMap = new HashMap<>();
     private static Scanner scanner = new Scanner(System.in);
+    private static String url = "https://source.unsplash.com/random/?nature";
 
     public static void main(String[] args) {
         Options options = new Options();
@@ -48,7 +49,7 @@ public class Main {
         try {
             deviceSelector();
             if (bluetoothManager.available(serviceUrl)) {
-                byte[] rawFile = ImageDownloader.download();
+                byte[] rawFile = ImageDownloader.download(url);
                 bluetoothManager.sendImage(serviceUrl, rawFile);
             }
         } catch (IOException e) {

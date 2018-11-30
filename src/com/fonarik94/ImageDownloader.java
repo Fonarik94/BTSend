@@ -6,10 +6,15 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-class ImageDownloader {
-    public static byte[] download() throws IOException {
-        URL url = new URL("https://source.unsplash.com/random/?nature");
-        HttpsURLConnection httpsConnection = (HttpsURLConnection) url.openConnection();
+public class ImageDownloader {
+    public static byte[] download(String url) throws IOException {
+        URL sourceUrl = new URL(url);
+        HttpsURLConnection httpsConnection = (HttpsURLConnection) sourceUrl.openConnection();
+        httpsConnection.addRequestProperty("Accept", "image/jpeg");
+        httpsConnection.addRequestProperty("User-Agent", "Mozilla/4.0");
+        if(!httpsConnection.getContentType().equals("image/jpeg")){
+            throw new IOException("Incompatible response content type: " + httpsConnection.getContentType() + "; Required \"image/jpeg\"");
+        }
         try (InputStream inputStream = new BufferedInputStream(httpsConnection.getInputStream());
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             if (httpsConnection.getResponseCode() == 200) {
